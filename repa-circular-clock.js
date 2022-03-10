@@ -61,7 +61,7 @@ export class RepaCircularClock extends LitElement {
         border-radius: 50%;
       }
 
-      .dial:before {
+      .dial::before {
         content: "";
         inset: 0;
         margin: auto;
@@ -69,7 +69,7 @@ export class RepaCircularClock extends LitElement {
         display: block;
         width: calc(100% - .45em);
         height: calc(100% - .45em);
-        border: 1.5em solid #444;
+        border: 1.5em solid #222;
         border-radius: 50%;
         box-sizing: border-box;
       }
@@ -88,6 +88,10 @@ export class RepaCircularClock extends LitElement {
         list-style: none;
       }
 
+      .dial.full .ring {
+        border-bottom-color: #333;
+      }
+
       .ring li {
         position: absolute;
         top: -1.5em;
@@ -95,10 +99,12 @@ export class RepaCircularClock extends LitElement {
         height: calc(100% + 3em);
         width: calc(100% + 3em);
         text-align: center;
+        transition: color .5s;
       }
 
       .ring li[active] {
         color: var(--active-color, #fff);
+        z-index: 1;
       }
 
       .dial-day {
@@ -115,6 +121,43 @@ export class RepaCircularClock extends LitElement {
         --dial-size: calc(90% - 8em);
         --active-color: #cc241d;
       }
+
+      .dial-hour {
+        --dial-size: calc(90% - 12em);
+        --active-color: #fff;
+      }
+
+      .dial-min {
+        --dial-size: calc(90% - 14em);
+        --active-color: #ddd;
+      }
+
+      .dial-sec {
+        --dial-size: calc(90% - 16em);
+        --active-color: #aaa;
+      }
+
+      .dial-hour::before,
+      .dial-min::before,
+      .dial-sec::before {
+        display: none;
+      }
+
+      .dial-hour .ring,
+      .dial-min .ring,
+      .dial-sec .ring {
+        font-size: .5em;
+      }
+
+      .dial-min .ring li:not([active]),
+      .dial-sec .ring li:not([active]) {
+        color: transparent;
+      }
+
+      .dial-min .ring li:nth-child(10n+1):not([active]),
+      .dial-sec .ring li:nth-child(10n+1):not([active]) {
+        color: inherit;
+      }
     `;
   }
 
@@ -128,12 +171,20 @@ export class RepaCircularClock extends LitElement {
   constructor() {
     super();
     this.date = new Date().toISOString();
-    this.tick = false;
+    this.tick = true;
   }
 
   firstUpdated() {
     super.firstUpdated();
     this._initFields();
+    if (this.tick) {
+      this._tick();
+    }
+  }
+
+  _tick() {
+    this.date = new Date().toISOString();
+    this._ticking = setTimeout(() => this._tick(), 1000);
   }
 
   updated(changedProperties) {
@@ -166,6 +217,18 @@ export class RepaCircularClock extends LitElement {
     return this._date?.getDay();
   }
 
+  get hour() {
+    return this._date?.getHours();
+  }
+
+  get minute() {
+    return this._date?.getMinutes();
+  }
+
+  get second() {
+    return this._date?.getSeconds();
+  }
+
   daysInMonth(month, year) {
     if (!this._date) {
       this._date = new Date();
@@ -183,12 +246,13 @@ export class RepaCircularClock extends LitElement {
   _initFields() {
     const rings = this.shadowRoot.querySelectorAll('.ring');
     rings.forEach(ring => {
+      const deg = ring.classList.contains('full') ? 360 : 270;
       const fields = ring.querySelectorAll('li');
       const length = fields.length;
       if (length > 0) {
-        const slice = 270 / length;
+        const slice = deg / length;
         fields.forEach((field, index) => {
-          field.style.transform = `rotate(${-135 + slice / 2 + index * slice}deg)`;
+          field.style.transform = `rotate(${- deg/2 + slice / 2 + index * slice}deg)`;
         });
       }
     });
@@ -196,16 +260,17 @@ export class RepaCircularClock extends LitElement {
 
   _rotateRing(ring, pos) {
     if (ring) {
+      const deg = ring.classList.contains('full') ? 360 : 270;
       const fields = ring.querySelectorAll('li');
       const length = fields.length;
       if (length > 0) {
-        const slice = 270 / length;
-        ring.style.transform = `rotate(${135 - slice / 2 - (pos - 1) * slice}deg)`;
+        const slice = deg / length;
+        ring.style.transform = `rotate(${deg/2 - slice / 2 - pos * slice}deg)`;
       }
       fields.forEach((field, index) => {
-        if (field.hasAttribute("active") && index !== pos - 1) {
+        if (field.hasAttribute("active") && index !== pos) {
           field.removeAttribute("active");
-        } else if (!field.hasAttribute("active") && index === pos - 1) {
+        } else if (!field.hasAttribute("active") && index === pos) {
           field.setAttribute("active", "");
         }
       });
@@ -213,9 +278,12 @@ export class RepaCircularClock extends LitElement {
   }
 
   _rotateRings() {
-    this._rotateRing(this.shadowRoot.querySelector(".dial-day .ring"), this.day);
-    this._rotateRing(this.shadowRoot.querySelector(".dial-month .ring"), this.month);
-    this._rotateRing(this.shadowRoot.querySelector(".dial-dow .ring"), this.dayOfWeek);
+    this._rotateRing(this.shadowRoot.querySelector(".dial-day .ring"), this.day - 1);
+    this._rotateRing(this.shadowRoot.querySelector(".dial-month .ring"), this.month - 1);
+    this._rotateRing(this.shadowRoot.querySelector(".dial-dow .ring"), this.dayOfWeek == 0 ? 6 : (this.dayOfWeek - 1));
+    this._rotateRing(this.shadowRoot.querySelector(".dial-hour .ring"), this.hour);
+    this._rotateRing(this.shadowRoot.querySelector(".dial-min .ring"), this.minute);
+    this._rotateRing(this.shadowRoot.querySelector(".dial-sec .ring"), this.second);
   }
 
   render() {
@@ -234,6 +302,21 @@ export class RepaCircularClock extends LitElement {
         <div class="dial dial-dow">
           <ul class="ring">
             ${DOWS.map(d => html`<li>${d}</li>`)}
+          </ul>
+        </div>
+        <div class="dial dial-hour full">
+          <ul class="ring full">
+            ${Array(24).fill(0).map((_, i) => html`<li>${i < 10 ? '0' + i : i}</li>`)}
+          </ul>
+        </div>
+        <div class="dial dial-min full">
+          <ul class="ring full">
+            ${Array(60).fill(0).map((_, i) => html`<li>${i < 10 ? '0' + i : i}</li>`)}
+          </ul>
+        </div>
+        <div class="dial dial-sec full">
+          <ul class="ring full">
+            ${Array(60).fill(0).map((_, i) => html`<li>${i < 10 ? '0' + i : i}</li>`)}
           </ul>
         </div>
       </div>
